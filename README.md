@@ -155,7 +155,7 @@ Without the rule layer, this patient walks away with a clean bill of health. Wit
 | Qin (2022) | Lab + lifestyle | 0.83 | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Zou (2018) | Lab + clinical | 0.82 | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Riveros Perez (2025) | Lifestyle | 0.817 | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **This Project** | **5 non-invasive** | **0.766** | **✅ ECE 0.0085** | **✅ SHAP+LIME** | **✅ 10 seeds** | **✅ 8 tabs** | **✅ 4 outcomes** |
+| **This Project** | **5 non-invasive** | **0.766** | ** ECE 0.0085** | **SHAP+LIME** | **10 seeds** | **8 tabs** | **4 outcomes** |
 
 Lower AUC — but that's the cost of using no blood test features. On every other dimension, this project exceeds the published literature.
 
@@ -227,5 +227,3 @@ Supervised by Owa Kayode
 This system is a **research prototype** developed as a university final year project. It is **not a medical device** and must not be used for clinical diagnosis. Always consult a qualified healthcare professional for medical advice.
 
 ---
-
-*Built with ❤️ and a lot of calibration curves*
