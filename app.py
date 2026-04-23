@@ -10,8 +10,6 @@ from plotly.subplots import make_subplots
 import shap
 import lime
 import lime.lime_tabular
-import io
-import base64
 from datetime import datetime
 import warnings
 warnings.filterwarnings('ignore')
@@ -715,9 +713,8 @@ with tab1:
                 paper_bgcolor=BG, plot_bgcolor=BG,
                 font_color=TEXT, height=220,
                 margin=dict(t=10, b=40, l=10, r=10),
-                xaxis=dict(title='Red ▲ increases risk  |  Green ▼ decreases risk',
-                           gridcolor=GRID, zeroline=False,
-                           title_font_size=10),
+                xaxis=dict(title='Red increases risk  |  Green decreases risk',
+                           gridcolor=GRID, zeroline=False, title_font_size=10),
                 yaxis=dict(gridcolor=GRID)
             )
             st.plotly_chart(shap_fig, use_container_width=True)
@@ -729,9 +726,7 @@ with tab1:
                 unsafe_allow_html=True
             )
 
-            # PDF Report Download
-            report_text = f"""
-DIABETES SCREENING REPORT
+            report_text = f"""DIABETES SCREENING REPORT
 Generated: {datetime.now().strftime('%d %B %Y at %H:%M')}
 Model: XGBoost Tuned (GridSearchCV, AUC 0.766)
 Threshold: {THRESHOLD*100:.0f}%
@@ -753,7 +748,7 @@ FEATURE CONTRIBUTIONS (SHAP)
 """
             for i, f in enumerate(s_feat):
                 direction = "increases" if s_vals[i] > 0 else "decreases"
-                report_text += f"  {f} = {s_data[i]:.1f}  →  {direction} risk by {abs(s_vals[i]):.4f}\n"
+                report_text += f"  {f} = {s_data[i]:.1f}  ->  {direction} risk by {abs(s_vals[i]):.4f}\n"
 
             if a1c_v > 0 or glc_v > 0:
                 report_text += f"\nCLINICAL LAB VALUES\n"
@@ -770,7 +765,7 @@ System: Early Detection of T2DM | NHANES 2015-2018
 Nottingham Trent University | BSc Computing FYP 2026
 """
             st.download_button(
-                label="📄 Download Screening Report",
+                label="Download Screening Report",
                 data=report_text,
                 file_name=f"diabetes_screening_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
                 mime="text/plain",
@@ -835,6 +830,104 @@ Nottingham Trent University | BSc Computing FYP 2026
              style="margin-top:16px;font-size:0.8rem;">
             For screening purposes only. Does not constitute a clinical
             diagnosis. Always consult a qualified healthcare professional.
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### Patient Comparison Mode")
+    st.caption("Compare two patients side by side to see how different "
+               "profiles affect risk and which features drive the difference.")
+
+    cmp_col1, cmp_col2 = st.columns(2)
+    with cmp_col1:
+        st.markdown(f'<div class="patient-card"><div class="chart-title" '
+                    f'style="color:{BLUE};">Patient A</div>',
+                    unsafe_allow_html=True)
+        cmp_age_a = st.slider("Age", 18, 90, 45, key="cmp_a_age")
+        cmp_sex_a = st.radio("Sex", ["Male","Female"], horizontal=True, key="cmp_a_sex")
+        cmp_bmi_a = st.slider("BMI", 15.0, 60.0, 24.0, 0.1, key="cmp_a_bmi")
+        cmp_sbp_a = st.slider("Systolic BP", 80, 200, 120, key="cmp_a_sbp")
+        cmp_dbp_a = st.slider("Diastolic BP", 40, 130, 70, key="cmp_a_dbp")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with cmp_col2:
+        st.markdown(f'<div class="patient-card"><div class="chart-title" '
+                    f'style="color:{AMBER};">Patient B</div>',
+                    unsafe_allow_html=True)
+        cmp_age_b = st.slider("Age", 18, 90, 65, key="cmp_b_age")
+        cmp_sex_b = st.radio("Sex", ["Male","Female"], horizontal=True, key="cmp_b_sex")
+        cmp_bmi_b = st.slider("BMI", 15.0, 60.0, 34.0, 0.1, key="cmp_b_bmi")
+        cmp_sbp_b = st.slider("Systolic BP", 80, 200, 145, key="cmp_b_sbp")
+        cmp_dbp_b = st.slider("Diastolic BP", 40, 130, 90, key="cmp_b_dbp")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    if st.button("Compare Patients", use_container_width=True, key="cmp_btn"):
+        sex_a = 1 if cmp_sex_a == "Male" else 2
+        sex_b = 1 if cmp_sex_b == "Male" else 2
+        inp_a = np.array([[cmp_age_a, sex_a, cmp_bmi_a, cmp_sbp_a, cmp_dbp_a]])
+        inp_b = np.array([[cmp_age_b, sex_b, cmp_bmi_b, cmp_sbp_b, cmp_dbp_b]])
+        prob_a = xgb_tuned.predict_proba(inp_a)[0][1]
+        prob_b = xgb_tuned.predict_proba(inp_b)[0][1]
+        pct_a = prob_a * 100
+        pct_b = prob_b * 100
+        level_a = "LOW" if prob_a < 0.15 else ("MEDIUM" if prob_a < 0.35 else "HIGH")
+        level_b = "LOW" if prob_b < 0.15 else ("MEDIUM" if prob_b < 0.35 else "HIGH")
+        color_a = GREEN if prob_a < 0.15 else (AMBER if prob_a < 0.35 else RED)
+        color_b = GREEN if prob_b < 0.15 else (AMBER if prob_b < 0.35 else RED)
+
+        r_col1, r_col2 = st.columns(2)
+        with r_col1:
+            ga = go.Figure(go.Indicator(
+                mode="gauge+number", value=pct_a,
+                number={'suffix': '%', 'font': {'size': 36, 'color': TEXT}},
+                gauge={'axis': {'range': [0, 100], 'tickcolor': MUTED, 'tickfont': {'color': MUTED}},
+                       'bar': {'color': color_a, 'thickness': 0.7}, 'bgcolor': '#21262d', 'borderwidth': 0,
+                       'steps': [{'range': [0, 15], 'color': '#0f1f0f'}, {'range': [15, 35], 'color': '#1a1500'}, {'range': [35, 100], 'color': '#1f1116'}]},
+                title={'text': f"<b>Patient A - {level_a} RISK</b>", 'font': {'size': 16, 'color': color_a}}
+            ))
+            ga.update_layout(paper_bgcolor=BG, font_color=TEXT, height=250, margin=dict(t=70, b=10, l=20, r=20))
+            st.plotly_chart(ga, use_container_width=True)
+
+        with r_col2:
+            gb = go.Figure(go.Indicator(
+                mode="gauge+number", value=pct_b,
+                number={'suffix': '%', 'font': {'size': 36, 'color': TEXT}},
+                gauge={'axis': {'range': [0, 100], 'tickcolor': MUTED, 'tickfont': {'color': MUTED}},
+                       'bar': {'color': color_b, 'thickness': 0.7}, 'bgcolor': '#21262d', 'borderwidth': 0,
+                       'steps': [{'range': [0, 15], 'color': '#0f1f0f'}, {'range': [15, 35], 'color': '#1a1500'}, {'range': [35, 100], 'color': '#1f1116'}]},
+                title={'text': f"<b>Patient B - {level_b} RISK</b>", 'font': {'size': 16, 'color': color_b}}
+            ))
+            gb.update_layout(paper_bgcolor=BG, font_color=TEXT, height=250, margin=dict(t=70, b=10, l=20, r=20))
+            st.plotly_chart(gb, use_container_width=True)
+
+        shap_a = shap.TreeExplainer(xgb_tuned).shap_values(inp_a)[0]
+        shap_b = shap.TreeExplainer(xgb_tuned).shap_values(inp_b)[0]
+        fd = ['Age', 'Sex', 'BMI', 'Systolic BP', 'Diastolic BP']
+        cmp_shap_fig = go.Figure()
+        cmp_shap_fig.add_trace(go.Bar(name='Patient A', y=fd, x=shap_a, orientation='h', marker_color=BLUE,
+            hovertemplate='%{y}: %{x:.4f}<extra>Patient A</extra>'))
+        cmp_shap_fig.add_trace(go.Bar(name='Patient B', y=fd, x=shap_b, orientation='h', marker_color=AMBER,
+            hovertemplate='%{y}: %{x:.4f}<extra>Patient B</extra>'))
+        cmp_shap_fig.update_layout(
+            barmode='group', paper_bgcolor=BG, plot_bgcolor=BG,
+            font_color=TEXT, height=300, margin=dict(t=40, b=40, l=10, r=10),
+            title=dict(text='SHAP Feature Contributions - Side by Side', font=dict(size=14)),
+            xaxis=dict(title='SHAP Value (positive = increases risk)', gridcolor=GRID, zeroline=True, zerolinecolor=MUTED),
+            yaxis=dict(gridcolor=GRID), legend=dict(bgcolor=BG, bordercolor=GRID, borderwidth=1)
+        )
+        st.plotly_chart(cmp_shap_fig, use_container_width=True)
+
+        diff = pct_b - pct_a
+        diff_dir = "higher" if diff > 0 else "lower"
+        max_diff_idx = np.argmax(np.abs(shap_b - shap_a))
+        st.markdown(f"""
+        <div class="info-box">
+            <strong>Comparison Summary:</strong>
+            Patient B's risk is <strong>{abs(diff):.1f} percentage points
+            {diff_dir}</strong> than Patient A's.
+            The largest contributing difference is in
+            <strong>{fd[max_diff_idx]}</strong>,
+            which accounts for a SHAP difference of
+            {abs(shap_b[max_diff_idx] - shap_a[max_diff_idx]):.4f}.
         </div>""", unsafe_allow_html=True)
 
 # ── TAB 2 MODEL RESULTS ───────────────────────────────────────
@@ -916,7 +1009,7 @@ with tab2:
             auc = roc_auc_score(y_test, yp)
             lw  = 3 if primary else 1.5
             dash = 'solid' if primary else 'dash'
-            lbl = f"{'★ ' if primary else ''}{name} ({auc:.3f})"
+            lbl = f"{'* ' if primary else ''}{name} ({auc:.3f})"
             roc_fig.add_trace(go.Scatter(
                 x=fpr, y=tpr, mode='lines', name=lbl,
                 line=dict(color=c, width=lw, dash=dash),
@@ -924,19 +1017,15 @@ with tab2:
             ))
         roc_fig.add_trace(go.Scatter(
             x=[0,1], y=[0,1], mode='lines', name='Random (0.500)',
-            line=dict(color=GRID, width=1, dash='dash'),
-            showlegend=True
+            line=dict(color=GRID, width=1, dash='dash'), showlegend=True
         ))
         roc_fig.update_layout(
             paper_bgcolor=BG, plot_bgcolor=BG,
             font_color=TEXT, height=450,
             margin=dict(t=30, b=40, l=50, r=20),
-            xaxis=dict(title='False Positive Rate', gridcolor=GRID,
-                       zeroline=False),
-            yaxis=dict(title='True Positive Rate', gridcolor=GRID,
-                       zeroline=False),
-            legend=dict(bgcolor=BG, bordercolor=GRID, borderwidth=1,
-                        font=dict(size=10))
+            xaxis=dict(title='False Positive Rate', gridcolor=GRID, zeroline=False),
+            yaxis=dict(title='True Positive Rate', gridcolor=GRID, zeroline=False),
+            legend=dict(bgcolor=BG, bordercolor=GRID, borderwidth=1, font=dict(size=10))
         )
         st.plotly_chart(roc_fig, use_container_width=True)
 
@@ -949,12 +1038,9 @@ with tab2:
         primary_r = [r['Primary'] for _, r in res_df.iterrows()]
         bar_clrs  = [GREEN if p else BLUE for p in primary_r]
         missed_fig = go.Figure(go.Bar(
-            x=missed_r[::-1],
-            y=names_r[::-1],
-            orientation='h',
+            x=missed_r[::-1], y=names_r[::-1], orientation='h',
             marker_color=bar_clrs[::-1],
-            text=missed_r[::-1],
-            textposition='outside',
+            text=missed_r[::-1], textposition='outside',
             textfont=dict(color=TEXT, size=12),
             hovertemplate='%{y}: %{x} missed<extra></extra>'
         ))
@@ -962,8 +1048,7 @@ with tab2:
             paper_bgcolor=BG, plot_bgcolor=BG,
             font_color=TEXT, height=450,
             margin=dict(t=30, b=40, l=10, r=40),
-            xaxis=dict(title='Missed Diabetic Patients', gridcolor=GRID,
-                       zeroline=False),
+            xaxis=dict(title='Missed Diabetic Patients', gridcolor=GRID, zeroline=False),
             yaxis=dict(gridcolor=GRID)
         )
         st.plotly_chart(missed_fig, use_container_width=True)
